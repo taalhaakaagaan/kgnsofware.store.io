@@ -249,12 +249,28 @@
     const tickerList = document.getElementById('ticker-list');
     const filterBtn = document.getElementById('filter-btn');
     const dateInput = document.getElementById('date-input');
-    const API_KEY = 'AMbTLShvcwPm5QDjPy5oxn8oyfmxxW7D';
+    let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
     const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
     const MARKET_CAP_MIN = 750_000_000;
     const MARKET_CAP_MAX = 1_000_000_000;
 
     let currentState = null;
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    function getApiKey() {
+      if (apiKey) return apiKey;
+      const entered = prompt('Polygon API anahtarını girin:')?.trim();
+      if (entered) {
+        apiKey = entered;
+        try {
+          localStorage.setItem('polygon-api-key', apiKey);
+        } catch (error) {
+          // sessizce yok say
+        }
+      }
+      return apiKey;
+    }
 
     function renderState(state) {
       const normalizedState = state === 'ready' || state === 'waiting' ? state : null;
@@ -305,7 +321,7 @@
       dateInput.value = iso;
     }
 
-    async function fetchExchangeTickers(exchange, date) {
+    async function fetchExchangeTickers(exchange, date, key) {
       let url = new URL('https://api.polygon.io/v3/reference/tickers');
       url.searchParams.set('market', 'stocks');
       url.searchParams.set('active', 'true');
@@ -314,7 +330,7 @@
       url.searchParams.set('date', date);
       url.searchParams.set('market_cap.gte', MARKET_CAP_MIN.toString());
       url.searchParams.set('market_cap.lte', MARKET_CAP_MAX.toString());
-      url.searchParams.set('apiKey', API_KEY);
+      url.searchParams.set('apiKey', key);
 
       const collected = [];
 
@@ -326,14 +342,15 @@
 
         const payload = await res.json();
         if (payload.status && payload.status !== 'OK') {
-          throw new Error('Borsa ' + exchange + ': ' + (payload.error || payload.status));
+          throw new Error('Borsa ' + exchange + ' (' + res.status + '): ' + (payload.error || payload.status));
         }
 
         collected.push(...(payload.results || []));
 
         if (payload.next_url) {
           url = new URL(payload.next_url);
-          url.searchParams.set('apiKey', API_KEY);
+          url.searchParams.set('apiKey', key);
+          await sleep(150);
         } else {
           url = null;
         }
@@ -348,8 +365,15 @@
       tickerList.innerHTML = '';
 
       try {
+        const key = getApiKey();
+        if (!key) {
+          filterStatus.textContent = 'Durum: API anahtarı gerekli.';
+          filterStatus.className = 'status waiting';
+          return;
+        }
+
         const settled = await Promise.allSettled(
-          EXCHANGES.map((ex) => fetchExchangeTickers(ex, date))
+          EXCHANGES.map((ex) => fetchExchangeTickers(ex, date, key))
         );
 
         const results = settled
