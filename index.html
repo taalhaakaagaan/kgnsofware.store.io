@@ -352,12 +352,7 @@
           EXCHANGES.map((ex) => fetchExchangeTickers(ex, date))
         )).flat();
 
-        const filtered = results.filter((item) => {
-          const capValue = item.market_cap ?? item.marketCap;
-          if (capValue === undefined || capValue === null) return true;
-          const cap = Number(capValue);
-          return Number.isFinite(cap) && cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_MAX;
-        }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const filtered = results.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         if (!filtered.length) {
           const empty = document.createElement('li');
