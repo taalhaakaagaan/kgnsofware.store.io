@@ -222,7 +222,7 @@
     <section class="card grid" aria-labelledby="stocks-title">
       <div>
         <h2 id="stocks-title">Hisse filtresi (Polygon)</h2>
-        <p>Seçtiğin tarihte XNAS, XNYS veya XASE borsalarındaki market cap 750M-1B arası hisseleri listele.</p>
+        <p>Seçtiğin tarihte XNAS, XNYS veya XASE borsalarındaki market cap 1K-750M arası hisseleri listele.</p>
       </div>
 
       <div class="inline">
@@ -251,8 +251,8 @@
     const dateInput = document.getElementById('date-input');
     let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
     const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
-    const MARKET_CAP_MIN = 750_000_000;
-    const MARKET_CAP_MAX = 1_000_000_000;
+    const MARKET_CAP_MIN = 1_000;
+    const MARKET_CAP_MAX = 750_000_000;
 
     let currentState = null;
 
