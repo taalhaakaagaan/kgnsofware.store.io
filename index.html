@@ -2,10 +2,220 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KGN Software</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --accent: #22c55e;
+      --accent-strong: #16a34a;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(34,197,94,0.15), transparent 30%),
+                  radial-gradient(circle at 80% 0%, rgba(59,130,246,0.12), transparent 25%),
+                  var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .page {
+      width: min(720px, 100%);
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero {
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(32px, 4vw, 42px);
+      letter-spacing: -0.5px;
+    }
+
+    .tagline {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .card {
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      backdrop-filter: blur(10px);
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .card p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #0b1120;
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.25);
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .progress {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 16px 0 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #22c55e, #4ade80, #22c55e);
+      transition: width 220ms ease-out;
+    }
+
+    .status {
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .status.ready {
+      color: #4ade80;
+    }
+
+    .status.waiting {
+      color: #fbbf24;
+    }
+
+    .status.reset {
+      color: var(--muted);
+    }
+  </style>
 </head>
 <body>
-  <h1>KGN Software</h1>
-  <p>GitHub Pages çalışıyor 🚀</p>
+  <main class="page">
+    <header class="hero">
+      <h1>KGN Software</h1>
+      <p class="tagline">GitHub Pages çalışıyor 🚀</p>
+    </header>
+
+    <section class="card" aria-labelledby="feature-title">
+      <h2 id="feature-title">Yeni özelliğe hazır mısın?</h2>
+      <p>Butona dokunarak bu sayfadaki özelliği aktifleştir ve hazır olduğunu bize bildir.</p>
+
+      <div class="controls">
+        <button id="ready-toggle" class="primary" type="button">Hazırım</button>
+        <button id="ready-reset" class="secondary" type="button">Henüz değil</button>
+      </div>
+
+      <div class="progress" role="presentation">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+
+      <p id="status-text" class="status reset">Durum: Beklemede</p>
+    </section>
+  </main>
+
+  <script>
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('status-text');
+    const readyToggle = document.getElementById('ready-toggle');
+    const readyReset = document.getElementById('ready-reset');
+    const STORAGE_KEY = 'kgn-ready-state';
+
+    function renderState(state) {
+      if (state === 'ready') {
+        progressBar.style.width = '100%';
+        statusText.textContent = 'Durum: Hazır 🎯';
+        statusText.className = 'status ready';
+        readyToggle.textContent = 'Hazırlığı Güncelle';
+      } else if (state === 'waiting') {
+        progressBar.style.width = '60%';
+        statusText.textContent = 'Durum: Hazırlanıyor ⏳';
+        statusText.className = 'status waiting';
+        readyToggle.textContent = 'Hazırım';
+      } else {
+        progressBar.style.width = '0';
+        statusText.textContent = 'Durum: Beklemede';
+        statusText.className = 'status reset';
+        readyToggle.textContent = 'Hazırım';
+      }
+    }
+
+    function saveState(state) {
+      try {
+        localStorage.setItem(STORAGE_KEY, state);
+      } catch (_) {
+        // sessizce yoksay
+      }
+    }
+
+    readyToggle.addEventListener('click', () => {
+      const nextState = progressBar.style.width === '100%' ? 'waiting' : 'ready';
+      renderState(nextState);
+      saveState(nextState);
+    });
+
+    readyReset.addEventListener('click', () => {
+      renderState(null);
+      saveState('');
+    });
+
+    renderState(localStorage.getItem(STORAGE_KEY) || null);
+  </script>
 </body>
 </html>
