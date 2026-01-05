@@ -239,8 +239,82 @@
     </section>
   </main>
 <script>
-  const MARKET_CAP_MIN = 1_000;
-const MARKET_CAP_LIMIT = 750_000_000; // Python kodundaki MARKET_CAP_LIMIT ile aynı
+const progressBar = document.getElementById('progress-bar');
+const statusText = document.getElementById('status-text');
+const readyToggle = document.getElementById('ready-toggle');
+const readyReset = document.getElementById('ready-reset');
+const STORAGE_KEY = 'kgn-ready-state';
+const filterStatus = document.getElementById('filter-status');
+const tickerList = document.getElementById('ticker-list');
+const filterBtn = document.getElementById('filter-btn');
+const dateInput = document.getElementById('date-input');
+const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
+const MARKET_CAP_MIN = 1_000;
+const MARKET_CAP_LIMIT = 750_000_000;
+
+let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
+let currentState = null;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function getApiKey() {
+  if (apiKey) return apiKey;
+  const entered = prompt('Polygon API anahtarını girin:')?.trim();
+  if (entered) {
+    apiKey = entered;
+    try {
+      localStorage.setItem('polygon-api-key', apiKey);
+    } catch (error) {}
+  }
+  return apiKey;
+}
+
+function renderState(state) {
+  const normalizedState = state === 'ready' || state === 'waiting' ? state : null;
+  currentState = normalizedState;
+  if (normalizedState === 'ready') {
+    progressBar.style.width = '100%';
+    statusText.textContent = 'Durum: Hazır 🎯';
+    statusText.className = 'status ready';
+    readyToggle.textContent = 'Hazırlığı Güncelle';
+  } else if (normalizedState === 'waiting') {
+    progressBar.style.width = '60%';
+    statusText.textContent = 'Durum: Hazırlanıyor ⏳';
+    statusText.className = 'status waiting';
+    readyToggle.textContent = 'Hazırım';
+  } else {
+    progressBar.style.width = '0';
+    statusText.textContent = 'Durum: Beklemede';
+    statusText.className = 'status reset';
+    readyToggle.textContent = 'Hazırım';
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, state);
+  } catch (error) {}
+}
+
+readyToggle.addEventListener('click', () => {
+  const nextState = currentState === 'ready' ? 'waiting' : 'ready';
+  renderState(nextState);
+  saveState(nextState);
+});
+
+readyReset.addEventListener('click', () => {
+  renderState(null);
+  saveState('');
+});
+
+const savedState = localStorage.getItem(STORAGE_KEY);
+renderState(savedState === 'ready' || savedState === 'waiting' ? savedState : null);
+
+function setDefaultDate() {
+  const today = new Date();
+  const iso = today.toISOString().slice(0, 10);
+  dateInput.value = iso;
+}
 
 async function fetchExchangeTickers(exchange, key) {
   let url = new URL('https://api.polygon.io/v3/reference/tickers');
@@ -278,7 +352,6 @@ async function fetchExchangeTickers(exchange, key) {
 }
 
 async function fetchMarketCaps(tickers, key) {
-  // Her ticker için market cap'i Polygon'dan çek
   const results = {};
   for (const ticker of tickers) {
     const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${key}`;
@@ -325,13 +398,9 @@ async function fetchTickers(date) {
       throw new Error(message);
     }
 
-    // Ticker listesini al
     const tickers = results.map(item => item.ticker).filter(Boolean);
-
-    // Market cap'leri çek
     const marketCaps = await fetchMarketCaps(tickers, key);
 
-    // Python kodundaki gibi filtrele
     const filtered = results.filter((item) => {
       const ticker = item.ticker;
       const cap = marketCaps[ticker];
@@ -370,6 +439,18 @@ async function fetchTickers(date) {
     tickerList.appendChild(li);
   }
 }
-  </script>
+
+filterBtn.addEventListener('click', () => {
+  const selectedDate = dateInput.value;
+  if (!selectedDate) {
+    filterStatus.textContent = 'Durum: Lütfen tarih seçin.';
+    filterStatus.className = 'status waiting';
+    return;
+  }
+  fetchTickers(selectedDate);
+});
+
+setDefaultDate();
+</script>
 </body>
 </html>
