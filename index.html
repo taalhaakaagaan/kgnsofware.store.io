@@ -2,10 +2,381 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KGN Software</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --accent: #22c55e;
+      --accent-strong: #16a34a;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(34,197,94,0.15), transparent 30%),
+                  radial-gradient(circle at 80% 0%, rgba(59,130,246,0.12), transparent 25%),
+                  var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .page {
+      width: min(720px, 100%);
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero {
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(32px, 4vw, 42px);
+      letter-spacing: -0.5px;
+    }
+
+    .tagline {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .card {
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      backdrop-filter: blur(10px);
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .card p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #0b1120;
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.25);
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .progress {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 16px 0 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #22c55e, #4ade80, #22c55e);
+      transition: width 220ms ease-out;
+    }
+
+    .status {
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .status.ready {
+      color: #4ade80;
+    }
+
+    .status.waiting {
+      color: #fbbf24;
+    }
+
+    .status.reset {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .inline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="date"] {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+
+    input[type="date"]:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    li {
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .ticker {
+      font-weight: 700;
+      color: var(--accent);
+    }
+  </style>
 </head>
 <body>
-  <h1>KGN Software</h1>
-  <p>GitHub Pages çalışıyor 🚀</p>
+  <main class="page">
+    <header class="hero">
+      <h1>KGN Software</h1>
+      <p class="tagline">GitHub Pages çalışıyor 🚀</p>
+    </header>
+
+    <section class="card" aria-labelledby="feature-title">
+      <h2 id="feature-title">Yeni özelliğe hazır mısın?</h2>
+      <p>Butona dokunarak bu sayfadaki özelliği aktifleştir ve hazır olduğunu bize bildir.</p>
+
+      <div class="controls">
+        <button id="ready-toggle" class="primary" type="button">Hazırım</button>
+        <button id="ready-reset" class="secondary" type="button">Henüz değil</button>
+      </div>
+
+      <div class="progress" role="presentation">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+
+      <p id="status-text" class="status reset">Durum: Beklemede</p>
+    </section>
+
+    <section class="card grid" aria-labelledby="stocks-title">
+      <div>
+        <h2 id="stocks-title">Hisse filtresi (Polygon)</h2>
+        <p>Seçtiğin tarihte XNAS, XNYS veya XASE borsalarındaki market cap 750M-1B arası hisseleri listele.</p>
+      </div>
+
+      <div class="inline">
+        <label for="date-input">Tarih:</label>
+        <input id="date-input" type="date">
+        <button id="filter-btn" class="primary" type="button">Filtrele</button>
+        <span id="filter-status" class="status reset" aria-live="polite">Durum: Beklemede</span>
+      </div>
+
+      <div>
+        <p class="status reset" style="margin-bottom:8px;">Sonuçlar</p>
+        <ul id="ticker-list" aria-live="polite"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('status-text');
+    const readyToggle = document.getElementById('ready-toggle');
+    const readyReset = document.getElementById('ready-reset');
+    const STORAGE_KEY = 'kgn-ready-state';
+    const filterStatus = document.getElementById('filter-status');
+    const tickerList = document.getElementById('ticker-list');
+    const filterBtn = document.getElementById('filter-btn');
+    const dateInput = document.getElementById('date-input');
+    const API_KEY = 'AMbTLShvcwPm5QDjPy5oxn8oyfmxxW7D';
+    const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
+    const MARKET_CAP_MIN = 750_000_000;
+    const MARKET_CAP_MAX = 1_000_000_000;
+
+    let currentState = null;
+
+    function renderState(state) {
+      const normalizedState = state === 'ready' || state === 'waiting' ? state : null;
+      currentState = normalizedState;
+      if (normalizedState === 'ready') {
+        progressBar.style.width = '100%';
+        statusText.textContent = 'Durum: Hazır 🎯';
+        statusText.className = 'status ready';
+        readyToggle.textContent = 'Hazırlığı Güncelle';
+      } else if (normalizedState === 'waiting') {
+        progressBar.style.width = '60%';
+        statusText.textContent = 'Durum: Hazırlanıyor ⏳';
+        statusText.className = 'status waiting';
+        readyToggle.textContent = 'Hazırım';
+      } else {
+        progressBar.style.width = '0';
+        statusText.textContent = 'Durum: Beklemede';
+        statusText.className = 'status reset';
+        readyToggle.textContent = 'Hazırım';
+      }
+    }
+
+    function saveState(state) {
+      try {
+        localStorage.setItem(STORAGE_KEY, state);
+      } catch (error) {
+        // sessizce yok say
+      }
+    }
+
+    readyToggle.addEventListener('click', () => {
+      const nextState = currentState === 'ready' ? 'waiting' : 'ready';
+      renderState(nextState);
+      saveState(nextState);
+    });
+
+    readyReset.addEventListener('click', () => {
+      renderState(null);
+      saveState('');
+    });
+
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    renderState(savedState === 'ready' || savedState === 'waiting' ? savedState : null);
+
+    function setDefaultDate() {
+      const today = new Date();
+      const iso = today.toISOString().slice(0, 10);
+      dateInput.value = iso;
+    }
+
+    async function fetchTickers(date) {
+      filterStatus.textContent = 'Durum: Yükleniyor...';
+      filterStatus.className = 'status waiting';
+      tickerList.innerHTML = '';
+
+      try {
+        const responses = await Promise.all(EXCHANGES.map((ex) => {
+          const url = new URL('https://api.polygon.io/v3/reference/tickers');
+          url.searchParams.set('market', 'stocks');
+          url.searchParams.set('active', 'true');
+          url.searchParams.set('limit', '1000');
+          url.searchParams.set('exchange', ex);
+          url.searchParams.set('date', date);
+          url.searchParams.set('apiKey', API_KEY);
+          return fetch(url);
+        }));
+
+        const payloads = await Promise.all(responses.map((res) => {
+          if (!res.ok) {
+            throw new Error('API yanıtı başarısız: ' + res.status);
+          }
+          return res.json();
+        }));
+
+        const results = payloads.flatMap((p) => p.results || []);
+        const filtered = results.filter((item) => {
+          const cap = Number(item.market_cap);
+          return Number.isFinite(cap) && cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_MAX;
+        });
+
+        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        if (!filtered.length) {
+          const empty = document.createElement('li');
+          empty.textContent = 'Sonuç bulunamadı.';
+          tickerList.appendChild(empty);
+        } else {
+          filtered.forEach((item) => {
+            const li = document.createElement('li');
+            const name = document.createElement('span');
+            name.textContent = item.name || 'İsimsiz';
+            const ticker = document.createElement('span');
+            ticker.textContent = item.ticker;
+            ticker.className = 'ticker';
+            li.append(name, ticker);
+            tickerList.appendChild(li);
+          });
+        }
+
+        filterStatus.textContent = `Durum: ${filtered.length} sonuç`;
+        filterStatus.className = 'status ready';
+      } catch (error) {
+        filterStatus.textContent = 'Durum: Hata - ' + (error?.message || 'Bilinmeyen hata');
+        filterStatus.className = 'status waiting';
+        const li = document.createElement('li');
+        li.textContent = 'Listeleme başarısız. Lütfen tekrar deneyin.';
+        tickerList.innerHTML = '';
+        tickerList.appendChild(li);
+      }
+    }
+
+    filterBtn.addEventListener('click', () => {
+      const selectedDate = dateInput.value;
+      if (!selectedDate) {
+        filterStatus.textContent = 'Durum: Lütfen tarih seçin.';
+        filterStatus.className = 'status waiting';
+        return;
+      }
+      fetchTickers(selectedDate);
+    });
+
+    setDefaultDate();
+  </script>
 </body>
 </html>
