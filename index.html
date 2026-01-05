@@ -292,11 +292,15 @@ async function loadCache(date) {
 
 async function saveCache(date, items) {
   try {
-    await fetch(`${API_BASE}?action=save&date=${encodeURIComponent(date)}`, {
+    const res = await fetch(`${API_BASE}?action=save&date=${encodeURIComponent(date)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('Cache save failed', res.status, text);
+    }
   } catch (error) {
     console.error('Cache save error', error);
   }
