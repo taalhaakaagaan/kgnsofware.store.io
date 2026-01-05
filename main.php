@@ -16,7 +16,6 @@ $DB_NAME = getenv('CACHE_DB_NAME') ?: 'u302174108_algorithmback';
 $DB_USER = getenv('CACHE_DB_USER') ?: 'u302174108_fathertkt06';
 $DB_PASSWORD = getenv('CACHE_DB_PASSWORD') ?: 'V12_Abd!78910';
 $DB_HOST = getenv('CACHE_DB_HOST') ?: 'mysql.hostinger.com';
-$DB_PORT = getenv('CACHE_DB_PORT') ?: '3306';
 
 $action = $_GET['action'] ?? '';
 $date = $_GET['date'] ?? '';
@@ -47,13 +46,14 @@ function pdo_conn($host, $port, $db, $user, $pass) {
 }
 
 try {
-    $pdo = pdo_conn($DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASSWORD);
-} catch (Throwable $e) {
-    json_response(500, [
-        'status' => 'error',
-        'detail' => 'DB bağlantısı başarısız: ' . $e->getMessage(),
-    ]);
+    $pdo = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWORD);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    echo "Bağlantı hatası: " . $e->getMessage();  // Hata mesajını ekrana yazdır
+    exit;
 }
+
+
 
 if ($action === 'get' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $table = table_name($date);
