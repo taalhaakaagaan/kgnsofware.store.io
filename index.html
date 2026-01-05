@@ -251,6 +251,7 @@ const dateInput = document.getElementById('date-input');
 const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
 const MARKET_CAP_MIN = 1_000;
 const MARKET_CAP_LIMIT = 750_000_000;
+const API_BASE = window.API_BASE_URL || 'main.php';
 const MAX_RETRIES = 4;
 const RETRY_BASE_MS = 120;
 const RETRY_JITTER_MS = 60;
@@ -273,6 +274,31 @@ async function fetchWithRetry(url, init) {
     const backoff = RETRY_BASE_MS * 2 ** attempt + Math.random() * RETRY_JITTER_MS;
     attempt += 1;
     await sleep(backoff);
+  }
+}
+
+async function loadCache(date) {
+  try {
+    const res = await fetch(`${API_BASE}?action=get&date=${encodeURIComponent(date)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('Önbellek isteği başarısız: ' + res.status);
+    const payload = await res.json();
+    return payload?.data || null;
+  } catch (error) {
+    console.error('Cache read error', error);
+    return null;
+  }
+}
+
+async function saveCache(date, items) {
+  try {
+    await fetch(`${API_BASE}?action=save&date=${encodeURIComponent(date)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+  } catch (error) {
+    console.error('Cache save error', error);
   }
 }
 
@@ -401,6 +427,23 @@ async function fetchTickers(date) {
   tickerList.innerHTML = '';
 
   try {
+    const cached = await loadCache(date);
+    if (cached && cached.length) {
+      cached.forEach((item) => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.textContent = item.name || 'İsimsiz';
+        const ticker = document.createElement('span');
+        ticker.textContent = item.ticker;
+        ticker.className = 'ticker';
+        li.append(name, ticker);
+        tickerList.appendChild(li);
+      });
+      filterStatus.textContent = `Durum: ${cached.length} sonuç (cache)`;
+      filterStatus.className = 'status ready';
+      return;
+    }
+
     const key = getApiKey();
     if (!key) {
       filterStatus.textContent = 'Durum: API anahtarı gerekli.';
@@ -457,6 +500,11 @@ async function fetchTickers(date) {
         tickerList.appendChild(li);
       });
     }
+
+    saveCache(
+      date,
+      filtered.map((item) => ({ name: item.name || 'İsimsiz', ticker: item.ticker }))
+    );
 
     const partial = failedCount ? ` (${failedCount} borsa başarısız)` : '';
     filterStatus.textContent = `Durum: ${filtered.length} sonuç${partial}`;
