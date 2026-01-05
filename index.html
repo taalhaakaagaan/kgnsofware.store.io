@@ -251,11 +251,30 @@ const dateInput = document.getElementById('date-input');
 const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
 const MARKET_CAP_MIN = 1_000;
 const MARKET_CAP_LIMIT = 750_000_000;
+const MAX_RETRIES = 4;
+const RETRY_BASE_MS = 120;
+const RETRY_JITTER_MS = 60;
 
 let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
 let currentState = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url, init) {
+  let attempt = 0;
+  // Fast retries on 429/5xx to squeeze rate limit while being resilient.
+  while (true) {
+    const res = await fetch(url, init);
+    if (res.ok) return res;
+    const status = res.status;
+    if (attempt >= MAX_RETRIES || (status !== 429 && status < 500)) {
+      return res; // Let caller handle non-retriable or exhausted.
+    }
+    const backoff = RETRY_BASE_MS * 2 ** attempt + Math.random() * RETRY_JITTER_MS;
+    attempt += 1;
+    await sleep(backoff);
+  }
+}
 
 function getApiKey() {
   if (apiKey) return apiKey;
@@ -327,7 +346,7 @@ async function fetchExchangeTickers(exchange, key) {
   const collected = [];
 
   while (url) {
-    const res = await fetch(url);
+    const res = await fetchWithRetry(url);
     if (!res.ok) {
       throw new Error('API yanıtı başarısız (' + exchange + '): ' + res.status);
     }
@@ -342,7 +361,7 @@ async function fetchExchangeTickers(exchange, key) {
     if (payload.next_url) {
       url = new URL(payload.next_url);
       url.searchParams.set('apiKey', key);
-      await sleep(150);
+      await sleep(5); // Daha kısa bekleme
     } else {
       url = null;
     }
@@ -353,17 +372,25 @@ async function fetchExchangeTickers(exchange, key) {
 
 async function fetchMarketCaps(tickers, key) {
   const results = {};
-  for (const ticker of tickers) {
-    const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${key}`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const payload = await res.json();
-      results[ticker] = payload.results?.market_cap ?? null;
-      await sleep(100);
-    } catch {
-      results[ticker] = null;
+  const BATCH_SIZE = 80;
+  for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+    const batch = tickers.slice(i, i + BATCH_SIZE);
+    const promises = batch.map(async (ticker) => {
+      const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${key}`;
+      try {
+        const res = await fetchWithRetry(url);
+        if (!res.ok) return [ticker, null];
+        const payload = await res.json();
+        return [ticker, payload.results?.market_cap ?? null];
+      } catch {
+        return [ticker, null];
+      }
+    });
+    const batchResults = await Promise.all(promises);
+    for (const [ticker, cap] of batchResults) {
+      results[ticker] = cap;
     }
+    await sleep(5);
   }
   return results;
 }
@@ -399,11 +426,15 @@ async function fetchTickers(date) {
     }
 
     const tickers = results.map(item => item.ticker).filter(Boolean);
-    const marketCaps = await fetchMarketCaps(tickers, key);
+    const missingTickers = results
+      .filter((item) => item.market_cap == null)
+      .map((item) => item.ticker)
+      .filter(Boolean);
+    const marketCaps = missingTickers.length ? await fetchMarketCaps(missingTickers, key) : {};
 
     const filtered = results.filter((item) => {
       const ticker = item.ticker;
-      const cap = marketCaps[ticker];
+      const cap = item.market_cap ?? marketCaps[ticker];
       if (cap == null) return false;
       return cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_LIMIT;
     }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
