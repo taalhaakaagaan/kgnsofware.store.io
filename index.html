@@ -321,12 +321,12 @@
       while (url) {
         const res = await fetch(url);
         if (!res.ok) {
-          throw new Error('API yanıtı başarısız: ' + res.status);
+          throw new Error('API yanıtı başarısız (' + exchange + '): ' + res.status);
         }
 
         const payload = await res.json();
         if (payload.status && payload.status !== 'OK') {
-          throw new Error(payload.error || payload.status);
+          throw new Error('Borsa ' + exchange + ': ' + (payload.error || payload.status));
         }
 
         collected.push(...(payload.results || []));
@@ -358,7 +358,11 @@
 
         if (!results.length) {
           const reason = settled.find((item) => item.status === 'rejected')?.reason;
-          throw reason instanceof Error ? reason : new Error('API yanıtı başarısız');
+          if (reason instanceof Error) {
+            throw reason;
+          }
+          const message = typeof reason === 'string' ? reason : 'Tüm borsa istekleri başarısız oldu';
+          throw new Error(message);
         }
 
         const filtered = results.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
