@@ -348,11 +348,22 @@
       tickerList.innerHTML = '';
 
       try {
-        const results = (await Promise.all(
+        const settled = await Promise.allSettled(
           EXCHANGES.map((ex) => fetchExchangeTickers(ex, date))
-        )).flat();
+        );
+
+        const results = settled
+          .filter((item) => item.status === 'fulfilled')
+          .flatMap((item) => item.value || []);
+
+        if (!results.length) {
+          const reason = settled.find((item) => item.status === 'rejected')?.reason;
+          throw reason instanceof Error ? reason : new Error('API yanıtı başarısız');
+        }
 
         const filtered = results.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        const failedCount = settled.filter((item) => item.status === 'rejected').length;
 
         if (!filtered.length) {
           const empty = document.createElement('li');
@@ -371,7 +382,8 @@
           });
         }
 
-        filterStatus.textContent = `Durum: ${filtered.length} sonuç`;
+        const partial = failedCount ? ` (${failedCount} borsa başarısız)` : '';
+        filterStatus.textContent = `Durum: ${filtered.length} sonuç${partial}`;
         filterStatus.className = 'status ready';
       } catch (error) {
         filterStatus.textContent = 'Durum: Hata - ' + (error?.message || 'Bilinmeyen hata');
