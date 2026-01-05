@@ -180,13 +180,14 @@
     let currentState = null;
 
     function renderState(state) {
-      currentState = state || null;
-      if (state === 'ready') {
+      const normalizedState = state === 'ready' || state === 'waiting' ? state : null;
+      currentState = normalizedState;
+      if (normalizedState === 'ready') {
         progressBar.style.width = '100%';
         statusText.textContent = 'Durum: Hazır 🎯';
         statusText.className = 'status ready';
         readyToggle.textContent = 'Hazırlığı Güncelle';
-      } else if (state === 'waiting') {
+      } else if (normalizedState === 'waiting') {
         progressBar.style.width = '60%';
         statusText.textContent = 'Durum: Hazırlanıyor ⏳';
         statusText.className = 'status waiting';
@@ -203,7 +204,7 @@
       try {
         localStorage.setItem(STORAGE_KEY, state);
       } catch (error) {
-        // sessizce yoksay
+        // sessizce yok say
       }
     }
 
@@ -218,7 +219,8 @@
       saveState('');
     });
 
-    renderState(localStorage.getItem(STORAGE_KEY) || null);
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    renderState(savedState === 'ready' || savedState === 'waiting' ? savedState : null);
   </script>
 </body>
 </html>
