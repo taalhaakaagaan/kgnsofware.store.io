@@ -239,241 +239,136 @@
     </section>
   </main>
 
-  <script>
-    const progressBar = document.getElementById('progress-bar');
-    const statusText = document.getElementById('status-text');
-    const readyToggle = document.getElementById('ready-toggle');
-    const readyReset = document.getElementById('ready-reset');
-    const STORAGE_KEY = 'kgn-ready-state';
-    const filterStatus = document.getElementById('filter-status');
-    const tickerList = document.getElementById('ticker-list');
-    const filterBtn = document.getElementById('filter-btn');
-    const dateInput = document.getElementById('date-input');
-    let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
-    const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
-    const MARKET_CAP_MIN = 1_000;
-    const MARKET_CAP_MAX = 750_000_000;
+  const MARKET_CAP_MIN = 1_000;
+const MARKET_CAP_LIMIT = 750_000_000; // Python kodundaki MARKET_CAP_LIMIT ile aynı
 
-    let currentState = null;
+async function fetchExchangeTickers(exchange, key) {
+  let url = new URL('https://api.polygon.io/v3/reference/tickers');
+  url.searchParams.set('market', 'stocks');
+  url.searchParams.set('active', 'true');
+  url.searchParams.set('limit', '1000');
+  url.searchParams.set('exchange', exchange);
+  url.searchParams.set('apiKey', key);
 
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const collected = [];
 
-    function getApiKey() {
-      if (apiKey) return apiKey;
-      const entered = prompt('Polygon API anahtarını girin:')?.trim();
-      if (entered) {
-        apiKey = entered;
-        try {
-          localStorage.setItem('polygon-api-key', apiKey);
-        } catch (error) {
-          // sessizce yok say
-        }
-      }
-      return apiKey;
+  while (url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error('API yanıtı başarısız (' + exchange + '): ' + res.status);
     }
 
-    function renderState(state) {
-      const normalizedState = state === 'ready' || state === 'waiting' ? state : null;
-      currentState = normalizedState;
-      if (normalizedState === 'ready') {
-        progressBar.style.width = '100%';
-        statusText.textContent = 'Durum: Hazır 🎯';
-        statusText.className = 'status ready';
-        readyToggle.textContent = 'Hazırlığı Güncelle';
-      } else if (normalizedState === 'waiting') {
-        progressBar.style.width = '60%';
-        statusText.textContent = 'Durum: Hazırlanıyor ⏳';
-        statusText.className = 'status waiting';
-        readyToggle.textContent = 'Hazırım';
-      } else {
-        progressBar.style.width = '0';
-        statusText.textContent = 'Durum: Beklemede';
-        statusText.className = 'status reset';
-        readyToggle.textContent = 'Hazırım';
-      }
+    const payload = await res.json();
+    if (payload.status && payload.status !== 'OK') {
+      throw new Error('Borsa ' + exchange + ' (' + res.status + '): ' + (payload.error || payload.status));
     }
 
-    function saveState(state) {
-      try {
-        localStorage.setItem(STORAGE_KEY, state);
-      } catch (error) {
-        // sessizce yok say
-      }
-    }
+    collected.push(...(payload.results || []));
 
-    readyToggle.addEventListener('click', () => {
-      const nextState = currentState === 'ready' ? 'waiting' : 'ready';
-      renderState(nextState);
-      saveState(nextState);
-    });
-
-    readyReset.addEventListener('click', () => {
-      renderState(null);
-      saveState('');
-    });
-
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    renderState(savedState === 'ready' || savedState === 'waiting' ? savedState : null);
-
-    function setDefaultDate() {
-      const today = new Date();
-      const iso = today.toISOString().slice(0, 10);
-      dateInput.value = iso;
-    }
-
-    async function fetchExchangeTickers(exchange, key) {
-      let url = new URL('https://api.polygon.io/v3/reference/tickers');
-      url.searchParams.set('market', 'stocks');
-      url.searchParams.set('active', 'true');
-      url.searchParams.set('limit', '1000');
-      url.searchParams.set('exchange', exchange);
+    if (payload.next_url) {
+      url = new URL(payload.next_url);
       url.searchParams.set('apiKey', key);
-
-      const collected = [];
-
-      while (url) {
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error('API yanıtı başarısız (' + exchange + '): ' + res.status);
-        }
-
-        const payload = await res.json();
-        if (payload.status && payload.status !== 'OK') {
-          throw new Error('Borsa ' + exchange + ' (' + res.status + '): ' + (payload.error || payload.status));
-        }
-
-        collected.push(...(payload.results || []));
-
-        if (payload.next_url) {
-          url = new URL(payload.next_url);
-          url.searchParams.set('apiKey', key);
-          await sleep(150);
-        } else {
-          url = null;
-        }
-      }
-
-      return collected;
+      await sleep(150);
+    } else {
+      url = null;
     }
+  }
 
-    async function fetchGroupedCloses(date, key) {
-      let url = new URL(`https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${date}`);
-      url.searchParams.set('adjusted', 'true');
-      url.searchParams.set('apiKey', key);
+  return collected;
+}
 
-      const closes = new Map();
-
-      while (url) {
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error('Fiyat verisi alınamadı: ' + res.status);
-        }
-        const payload = await res.json();
-        if (payload.status && payload.status !== 'OK') {
-          throw new Error(payload.error || payload.status);
-        }
-
-        for (const row of payload.results || []) {
-          if (row && row.T && Number.isFinite(row.c)) {
-            closes.set(row.T, Number(row.c));
-          }
-        }
-
-        if (payload.next_url) {
-          url = new URL(payload.next_url);
-          url.searchParams.set('apiKey', key);
-          await sleep(150);
-        } else {
-          url = null;
-        }
-      }
-
-      return closes;
+async function fetchMarketCaps(tickers, key) {
+  // Her ticker için market cap'i Polygon'dan çek
+  const results = {};
+  for (const ticker of tickers) {
+    const url = `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${key}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const payload = await res.json();
+      results[ticker] = payload.results?.market_cap ?? null;
+      await sleep(100);
+    } catch {
+      results[ticker] = null;
     }
+  }
+  return results;
+}
 
-    async function fetchTickers(date) {
-      filterStatus.textContent = 'Durum: Yükleniyor...';
+async function fetchTickers(date) {
+  filterStatus.textContent = 'Durum: Yükleniyor...';
+  filterStatus.className = 'status waiting';
+  tickerList.innerHTML = '';
+
+  try {
+    const key = getApiKey();
+    if (!key) {
+      filterStatus.textContent = 'Durum: API anahtarı gerekli.';
       filterStatus.className = 'status waiting';
-      tickerList.innerHTML = '';
-
-      try {
-        const key = getApiKey();
-        if (!key) {
-          filterStatus.textContent = 'Durum: API anahtarı gerekli.';
-          filterStatus.className = 'status waiting';
-          return;
-        }
-
-        const closes = await fetchGroupedCloses(date, key);
-
-        const settled = await Promise.allSettled(
-          EXCHANGES.map((ex) => fetchExchangeTickers(ex, key))
-        );
-
-        const results = settled
-          .filter((item) => item.status === 'fulfilled')
-          .flatMap((item) => item.value || []);
-
-        if (!results.length) {
-          const reason = settled.find((item) => item.status === 'rejected')?.reason;
-          if (reason instanceof Error) {
-            throw reason;
-          }
-          const message = typeof reason === 'string' ? reason : 'Tüm borsa istekleri başarısız oldu';
-          throw new Error(message);
-        }
-
-        const filtered = results.filter((item) => {
-          const shares = Number(item.weighted_shares_outstanding ?? item.share_class_shares_outstanding);
-          const close = closes.get(item.ticker);
-          if (!Number.isFinite(shares) || !Number.isFinite(close)) return false;
-          const cap = shares * close;
-          return cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_MAX;
-        }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-        const failedCount = settled.filter((item) => item.status === 'rejected').length;
-
-        if (!filtered.length) {
-          const empty = document.createElement('li');
-          empty.textContent = 'Sonuç bulunamadı.';
-          tickerList.appendChild(empty);
-        } else {
-          filtered.forEach((item) => {
-            const li = document.createElement('li');
-            const name = document.createElement('span');
-            name.textContent = item.name || 'İsimsiz';
-            const ticker = document.createElement('span');
-            ticker.textContent = item.ticker;
-            ticker.className = 'ticker';
-            li.append(name, ticker);
-            tickerList.appendChild(li);
-          });
-        }
-
-        const partial = failedCount ? ` (${failedCount} borsa başarısız)` : '';
-        filterStatus.textContent = `Durum: ${filtered.length} sonuç${partial}`;
-        filterStatus.className = 'status ready';
-      } catch (error) {
-        filterStatus.textContent = 'Durum: Hata - ' + (error?.message || 'Bilinmeyen hata');
-        filterStatus.className = 'status waiting';
-        const li = document.createElement('li');
-        li.textContent = 'Listeleme başarısız. Lütfen tekrar deneyin.';
-        tickerList.innerHTML = '';
-        tickerList.appendChild(li);
-      }
+      return;
     }
 
-    filterBtn.addEventListener('click', () => {
-      const selectedDate = dateInput.value;
-      if (!selectedDate) {
-        filterStatus.textContent = 'Durum: Lütfen tarih seçin.';
-        filterStatus.className = 'status waiting';
-        return;
-      }
-      fetchTickers(selectedDate);
-    });
+    const settled = await Promise.allSettled(
+      EXCHANGES.map((ex) => fetchExchangeTickers(ex, key))
+    );
 
-    setDefaultDate();
-  </script>
+    const results = settled
+      .filter((item) => item.status === 'fulfilled')
+      .flatMap((item) => item.value || []);
+
+    if (!results.length) {
+      const reason = settled.find((item) => item.status === 'rejected')?.reason;
+      if (reason instanceof Error) {
+        throw reason;
+      }
+      const message = typeof reason === 'string' ? reason : 'Tüm borsa istekleri başarısız oldu';
+      throw new Error(message);
+    }
+
+    // Ticker listesini al
+    const tickers = results.map(item => item.ticker).filter(Boolean);
+
+    // Market cap'leri çek
+    const marketCaps = await fetchMarketCaps(tickers, key);
+
+    // Python kodundaki gibi filtrele
+    const filtered = results.filter((item) => {
+      const ticker = item.ticker;
+      const cap = marketCaps[ticker];
+      if (cap == null) return false;
+      return cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_LIMIT;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const failedCount = settled.filter((item) => item.status === 'rejected').length;
+
+    if (!filtered.length) {
+      const empty = document.createElement('li');
+      empty.textContent = 'Sonuç bulunamadı.';
+      tickerList.appendChild(empty);
+    } else {
+      filtered.forEach((item) => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.textContent = item.name || 'İsimsiz';
+        const ticker = document.createElement('span');
+        ticker.textContent = item.ticker;
+        ticker.className = 'ticker';
+        li.append(name, ticker);
+        tickerList.appendChild(li);
+      });
+    }
+
+    const partial = failedCount ? ` (${failedCount} borsa başarısız)` : '';
+    filterStatus.textContent = `Durum: ${filtered.length} sonuç${partial}`;
+    filterStatus.className = 'status ready';
+  } catch (error) {
+    filterStatus.textContent = 'Durum: Hata - ' + (error?.message || 'Bilinmeyen hata');
+    filterStatus.className = 'status waiting';
+    const li = document.createElement('li');
+    li.textContent = 'Listeleme başarısız. Lütfen tekrar deneyin.';
+    tickerList.innerHTML = '';
+    tickerList.appendChild(li);
+  }
+}
 </body>
 </html>
