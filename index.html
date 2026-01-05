@@ -305,37 +305,59 @@
       dateInput.value = iso;
     }
 
+    async function fetchExchangeTickers(exchange, date) {
+      let url = new URL('https://api.polygon.io/v3/reference/tickers');
+      url.searchParams.set('market', 'stocks');
+      url.searchParams.set('active', 'true');
+      url.searchParams.set('limit', '1000');
+      url.searchParams.set('exchange', exchange);
+      url.searchParams.set('date', date);
+      url.searchParams.set('market_cap.gte', MARKET_CAP_MIN.toString());
+      url.searchParams.set('market_cap.lte', MARKET_CAP_MAX.toString());
+      url.searchParams.set('apiKey', API_KEY);
+
+      const collected = [];
+
+      while (url) {
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error('API yanıtı başarısız: ' + res.status);
+        }
+
+        const payload = await res.json();
+        if (payload.status && payload.status !== 'OK') {
+          throw new Error(payload.error || payload.status);
+        }
+
+        collected.push(...(payload.results || []));
+
+        if (payload.next_url) {
+          url = new URL(payload.next_url);
+          url.searchParams.set('apiKey', API_KEY);
+        } else {
+          url = null;
+        }
+      }
+
+      return collected;
+    }
+
     async function fetchTickers(date) {
       filterStatus.textContent = 'Durum: Yükleniyor...';
       filterStatus.className = 'status waiting';
       tickerList.innerHTML = '';
 
       try {
-        const responses = await Promise.all(EXCHANGES.map((ex) => {
-          const url = new URL('https://api.polygon.io/v3/reference/tickers');
-          url.searchParams.set('market', 'stocks');
-          url.searchParams.set('active', 'true');
-          url.searchParams.set('limit', '1000');
-          url.searchParams.set('exchange', ex);
-          url.searchParams.set('date', date);
-          url.searchParams.set('apiKey', API_KEY);
-          return fetch(url);
-        }));
+        const results = (await Promise.all(
+          EXCHANGES.map((ex) => fetchExchangeTickers(ex, date))
+        )).flat();
 
-        const payloads = await Promise.all(responses.map((res) => {
-          if (!res.ok) {
-            throw new Error('API yanıtı başarısız: ' + res.status);
-          }
-          return res.json();
-        }));
-
-        const results = payloads.flatMap((p) => p.results || []);
         const filtered = results.filter((item) => {
-          const cap = Number(item.market_cap);
+          const capValue = item.market_cap ?? item.marketCap;
+          if (capValue === undefined || capValue === null) return true;
+          const cap = Number(capValue);
           return Number.isFinite(cap) && cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_MAX;
-        });
-
-        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         if (!filtered.length) {
           const empty = document.createElement('li');
