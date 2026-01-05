@@ -144,6 +144,56 @@
     .status.reset {
       color: var(--muted);
     }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .inline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="date"] {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+
+    input[type="date"]:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    li {
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .ticker {
+      font-weight: 700;
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -168,6 +218,25 @@
 
       <p id="status-text" class="status reset">Durum: Beklemede</p>
     </section>
+
+    <section class="card grid" aria-labelledby="stocks-title">
+      <div>
+        <h2 id="stocks-title">Hisse filtresi (Polygon)</h2>
+        <p>Seçtiğin tarihte XNAS, XNYS veya XASE borsalarındaki market cap 750M-1B arası hisseleri listele.</p>
+      </div>
+
+      <div class="inline">
+        <label for="date-input">Tarih:</label>
+        <input id="date-input" type="date">
+        <button id="filter-btn" class="primary" type="button">Filtrele</button>
+        <span id="filter-status" class="status reset" aria-live="polite">Durum: Beklemede</span>
+      </div>
+
+      <div>
+        <p class="status reset" style="margin-bottom:8px;">Sonuçlar</p>
+        <ul id="ticker-list" aria-live="polite"></ul>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -176,6 +245,14 @@
     const readyToggle = document.getElementById('ready-toggle');
     const readyReset = document.getElementById('ready-reset');
     const STORAGE_KEY = 'kgn-ready-state';
+    const filterStatus = document.getElementById('filter-status');
+    const tickerList = document.getElementById('ticker-list');
+    const filterBtn = document.getElementById('filter-btn');
+    const dateInput = document.getElementById('date-input');
+    const API_KEY = 'AMbTLShvcwPm5QDjPy5oxn8oyfmxxW7D';
+    const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
+    const MARKET_CAP_MIN = 750_000_000;
+    const MARKET_CAP_MAX = 1_000_000_000;
 
     let currentState = null;
 
@@ -221,6 +298,85 @@
 
     const savedState = localStorage.getItem(STORAGE_KEY);
     renderState(savedState === 'ready' || savedState === 'waiting' ? savedState : null);
+
+    function setDefaultDate() {
+      const today = new Date();
+      const iso = today.toISOString().slice(0, 10);
+      dateInput.value = iso;
+    }
+
+    async function fetchTickers(date) {
+      filterStatus.textContent = 'Durum: Yükleniyor...';
+      filterStatus.className = 'status waiting';
+      tickerList.innerHTML = '';
+
+      try {
+        const responses = await Promise.all(EXCHANGES.map((ex) => {
+          const url = new URL('https://api.polygon.io/v3/reference/tickers');
+          url.searchParams.set('market', 'stocks');
+          url.searchParams.set('active', 'true');
+          url.searchParams.set('limit', '1000');
+          url.searchParams.set('exchange', ex);
+          url.searchParams.set('date', date);
+          url.searchParams.set('apiKey', API_KEY);
+          return fetch(url);
+        }));
+
+        const payloads = await Promise.all(responses.map((res) => {
+          if (!res.ok) {
+            throw new Error('API yanıtı başarısız: ' + res.status);
+          }
+          return res.json();
+        }));
+
+        const results = payloads.flatMap((p) => p.results || []);
+        const filtered = results.filter((item) => {
+          const cap = Number(item.market_cap);
+          return Number.isFinite(cap) && cap >= MARKET_CAP_MIN && cap <= MARKET_CAP_MAX;
+        });
+
+        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        if (!filtered.length) {
+          const empty = document.createElement('li');
+          empty.textContent = 'Sonuç bulunamadı.';
+          tickerList.appendChild(empty);
+        } else {
+          filtered.forEach((item) => {
+            const li = document.createElement('li');
+            const name = document.createElement('span');
+            name.textContent = item.name || 'İsimsiz';
+            const ticker = document.createElement('span');
+            ticker.textContent = item.ticker;
+            ticker.className = 'ticker';
+            li.append(name, ticker);
+            tickerList.appendChild(li);
+          });
+        }
+
+        filterStatus.textContent = `Durum: ${filtered.length} sonuç`;
+        filterStatus.className = 'status ready';
+      } catch (error) {
+        filterStatus.textContent = 'Durum: Hata - ' + (error?.message || 'Bilinmeyen hata');
+        filterStatus.className = 'status waiting';
+        const li = document.createElement('li');
+        li.textContent = 'Listeleme başarısız. Lütfen tekrar deneyin.';
+        tickerList.innerHTML = '';
+        tickerList.appendChild(li);
+      }
+    }
+
+    filterBtn.addEventListener('click', () => {
+      const selectedDate = dateInput.value;
+      if (!selectedDate) {
+        filterStatus.textContent = 'Durum: Lütfen tarih seçin.';
+        filterStatus.className = 'status waiting';
+        return;
+      }
+      fetchTickers(selectedDate);
+    });
+
+    setDefaultDate();
   </script>
 </body>
 </html>
