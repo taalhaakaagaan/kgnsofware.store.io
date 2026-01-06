@@ -194,6 +194,25 @@
       font-weight: 700;
       color: var(--accent);
     }
+
+    details {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.02);
+    }
+
+    pre {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 13px;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -236,6 +255,11 @@
         <p class="status reset" style="margin-bottom:8px;">Sonuçlar</p>
         <ul id="ticker-list" aria-live="polite"></ul>
       </div>
+
+      <details id="debug-box">
+        <summary>Debug</summary>
+        <pre id="debug-log">Boş</pre>
+      </details>
     </section>
   </main>
 <script>
@@ -248,6 +272,8 @@ const filterStatus = document.getElementById('filter-status');
 const tickerList = document.getElementById('ticker-list');
 const filterBtn = document.getElementById('filter-btn');
 const dateInput = document.getElementById('date-input');
+const debugBox = document.getElementById('debug-box');
+const debugLog = document.getElementById('debug-log');
 const EXCHANGES = ['XNAS', 'XNYS', 'XASE'];
 const MARKET_CAP_MIN = 1_000;
 const MARKET_CAP_LIMIT = 750_000_000;
@@ -258,6 +284,10 @@ const RETRY_JITTER_MS = 60;
 
 let apiKey = (window.POLYGON_API_KEY ?? localStorage.getItem('polygon-api-key')) || '';
 let currentState = null;
+
+function setDebug(message) {
+  debugLog.textContent = Array.isArray(message) ? message.join('\n') : String(message || '');
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -279,31 +309,33 @@ async function fetchWithRetry(url, init) {
 
 async function loadCache(date) {
   try {
-    const res = await fetch(`${API_BASE}?action=get&date=${encodeURIComponent(date)}`);
+    const res = await fetch(`${API_BASE}?action=get&date=${encodeURIComponent(date)}&debug=1`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error('Önbellek isteği başarısız: ' + res.status);
     const payload = await res.json();
+    if (payload?.debug) setDebug(payload.debug);
     return payload?.data || null;
   } catch (error) {
     console.error('Cache read error', error);
+    setDebug(error?.message || error);
     return null;
   }
 }
 
 async function saveCache(date, items) {
-  try {
-    const res = await fetch(`${API_BASE}?action=save&date=${encodeURIComponent(date)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error('Cache save failed', res.status, text);
-    }
-  } catch (error) {
-    console.error('Cache save error', error);
+  const res = await fetch(`${API_BASE}?action=save&date=${encodeURIComponent(date)}&debug=1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  const payload = await res.json().catch(() => null);
+  if (payload?.debug) setDebug(payload.debug);
+  if (!res.ok) {
+    const text = payload ? JSON.stringify(payload) : await res.text();
+    console.error('Cache save failed', res.status, text);
+    throw new Error('Kaydetme başarısız: ' + res.status);
   }
+  return payload;
 }
 
 function getApiKey() {
@@ -429,6 +461,7 @@ async function fetchTickers(date) {
   filterStatus.textContent = 'Durum: Yükleniyor...';
   filterStatus.className = 'status waiting';
   tickerList.innerHTML = '';
+  setDebug('');
 
   try {
     const cached = await loadCache(date);
@@ -445,6 +478,7 @@ async function fetchTickers(date) {
       });
       filterStatus.textContent = `Durum: ${cached.length} sonuç (cache)`;
       filterStatus.className = 'status ready';
+      if (!debugLog.textContent) setDebug('cache hit');
       return;
     }
 
@@ -465,10 +499,9 @@ async function fetchTickers(date) {
 
     if (!results.length) {
       const reason = settled.find((item) => item.status === 'rejected')?.reason;
-      if (reason instanceof Error) {
-        throw reason;
-      }
-      const message = typeof reason === 'string' ? reason : 'Tüm borsa istekleri başarısız oldu';
+      const message = reason instanceof Error
+        ? reason.message
+        : (typeof reason === 'string' ? reason : 'Tüm borsa istekleri başarısız oldu');
       throw new Error(message);
     }
 
@@ -508,7 +541,7 @@ async function fetchTickers(date) {
     saveCache(
       date,
       filtered.map((item) => ({ name: item.name || 'İsimsiz', ticker: item.ticker }))
-    );
+    ).catch(() => {});
 
     const partial = failedCount ? ` (${failedCount} borsa başarısız)` : '';
     filterStatus.textContent = `Durum: ${filtered.length} sonuç${partial}`;
@@ -520,6 +553,7 @@ async function fetchTickers(date) {
     li.textContent = 'Listeleme başarısız. Lütfen tekrar deneyin.';
     tickerList.innerHTML = '';
     tickerList.appendChild(li);
+    if (!debugLog.textContent) setDebug(error?.message || error);
   }
 }
 
