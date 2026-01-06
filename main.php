@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $DB_NAME = getenv('CACHE_DB_NAME') ?: 'u302174108_algorithmback';
 $DB_USER = getenv('CACHE_DB_USER') ?: 'u302174108_fathertkt06';
 $DB_PASSWORD = getenv('CACHE_DB_PASSWORD') ?: 'V12_Abd!78910';
-$DB_HOST = getenv('CACHE_DB_HOST') ?: 'mysql.hostinger.com';
+$DB_HOST = getenv('CACHE_DB_HOST') ?: 'srv1368.hstgr.io';
 $DB_PORT = getenv('CACHE_DB_PORT') ?: '3306';
 
 $action = $_GET['action'] ?? '';
