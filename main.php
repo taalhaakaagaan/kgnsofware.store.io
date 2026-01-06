@@ -12,11 +12,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$DB_NAME = getenv('CACHE_DB_NAME') ?: 'u302174108_algorithmback';
-$DB_USER = getenv('CACHE_DB_USER') ?: 'u302174108_fathertkt06';
-$DB_PASSWORD = getenv('CACHE_DB_PASSWORD') ?: 'V12_Abd!78910';
-$DB_HOST = getenv('CACHE_DB_HOST') ?: 'mysql.hostinger.com';
-$DB_PORT = getenv('CACHE_DB_PORT') ?: '3306';
+$DB_NAME = getenv('CACHE_DB_NAME') ?: getenv('DB_NAME');
+$DB_USER = getenv('CACHE_DB_USER') ?: getenv('DB_USER');
+$DB_PASSWORD = getenv('CACHE_DB_PASSWORD') ?: getenv('DB_PASSWORD');
+$DB_HOST = getenv('CACHE_DB_HOST') ?: getenv('DB_HOST');
+$DB_PORT = getenv('CACHE_DB_PORT') ?: getenv('DB_PORT') ?: '3306';
+
+if (!$DB_NAME || !$DB_USER || !$DB_PASSWORD || !$DB_HOST || !$DB_PORT) {
+    json_response(500, [
+        'status' => 'error',
+        'detail' => 'DB bağlantı bilgileri eksik',
+    ]);
+    return;
+}
+
+$portInt = filter_var(
+    $DB_PORT,
+    FILTER_VALIDATE_INT,
+    ['options' => ['min_range' => 1, 'max_range' => 65535]]
+);
+
+if ($portInt === false) {
+    json_response(400, [
+        'status' => 'error',
+        'detail' => 'DB port geçersiz',
+    ]);
+    return;
+}
+
+$DB_PORT = (string) $portInt;
 
 $action = $_GET['action'] ?? '';
 $date = $_GET['date'] ?? '';
@@ -85,9 +109,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $table = table_name($date);
     $raw = file_get_contents('php://input');
     $payload = json_decode($raw, true);
+    if (!is_array($payload)) {
+        json_response(400, ['status' => 'error', 'detail' => 'Geçersiz JSON gövdesi']);
+        return;
+    }
     $items = $payload['items'] ?? [];
     if (!is_array($items) || count($items) === 0) {
         json_response(400, ['status' => 'error', 'detail' => 'items boş']);
+        return;
     }
     try {
         $pdo->exec(
